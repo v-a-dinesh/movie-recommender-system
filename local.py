@@ -6,25 +6,34 @@ import time
 import json
 import os
 from datetime import datetime, timedelta
-import gdown
-import zipfile
 
 # Configuration
-OMDB_API_KEY = os.environ.get("OMDB_API_KEY", "d13737da")  # Use environment variable
+OMDB_API_KEY = "d13737da"  # Your OMDB API key
 OMDB_BASE_URL = "http://www.omdbapi.com/"
 
 # Cache system to reduce API calls
 class PosterCache:
-    def __init__(self, cache_duration_days=7):
+    def __init__(self, cache_file="omdb_cache.json", cache_duration_days=7):
+        self.cache_file = cache_file
         self.cache_duration = timedelta(days=cache_duration_days)
-        # Use Streamlit's session state for caching instead of file system
-        if 'poster_cache' not in st.session_state:
-            st.session_state.poster_cache = {}
+        self.cache = self.load_cache()
+    
+    def load_cache(self):
+        if os.path.exists(self.cache_file):
+            try:
+                with open(self.cache_file, 'r') as f:
+                    return json.load(f)
+            except:
+                return {}
+        return {}
+    
+    def save_cache(self):
+        with open(self.cache_file, 'w') as f:
+            json.dump(self.cache, f, indent=2)
     
     def get(self, movie_title):
-        cache = st.session_state.poster_cache
-        if movie_title in cache:
-            cached_data = cache[movie_title]
+        if movie_title in self.cache:
+            cached_data = self.cache[movie_title]
             # Check if cache is still valid
             try:
                 cached_time = datetime.fromisoformat(cached_data['timestamp'])
@@ -35,10 +44,11 @@ class PosterCache:
         return None
     
     def set(self, movie_title, data):
-        st.session_state.poster_cache[movie_title] = {
+        self.cache[movie_title] = {
             'data': data,
             'timestamp': datetime.now().isoformat()
         }
+        self.save_cache()
 
 # Initialize cache
 poster_cache = PosterCache()
@@ -160,7 +170,7 @@ def get_movie_details_omdb(movie_title, year=None):
         st.error(f"Error fetching movie details: {str(e)}")
         return None
 
-def recommend(movie, movies, similarity):
+def recommend(movie):
     """Generate movie recommendations"""
     try:
         index = movies[movies['title'] == movie].index[0]
@@ -206,48 +216,6 @@ def recommend(movie, movies, similarity):
         st.error(f"Error generating recommendations: {str(e)}")
         return []
 
-# Function to download data files from Google Drive or other source
-@st.cache_resource
-def download_data_files():
-    """Download model files if they don't exist"""
-    data_dir = "data"
-    if not os.path.exists(data_dir):
-        os.makedirs(data_dir)
-    
-    movie_list_path = os.path.join(data_dir, "movie_list.pkl")
-    similarity_path = os.path.join(data_dir, "similarity.pkl")
-    
-    # Check if files already exist
-    if os.path.exists(movie_list_path) and os.path.exists(similarity_path):
-        return movie_list_path, similarity_path
-    
-    # If using Google Drive, replace these with your file IDs
-    # Example:
-    # movie_list_id = "YOUR_GOOGLE_DRIVE_FILE_ID_FOR_MOVIE_LIST"
-    # similarity_id = "YOUR_GOOGLE_DRIVE_FILE_ID_FOR_SIMILARITY"
-    
-    # For now, return the expected paths
-    # You'll need to upload these files to your deployment
-    return movie_list_path, similarity_path
-
-# Load data with error handling
-@st.cache_data
-def load_data():
-    try:
-        # Try to load from data directory first
-        movie_list_path, similarity_path = download_data_files()
-        
-        if os.path.exists(movie_list_path) and os.path.exists(similarity_path):
-            movies = pickle.load(open(movie_list_path, 'rb'))
-            similarity = pickle.load(open(similarity_path, 'rb'))
-            return movies, similarity
-        else:
-            st.error("Required data files not found. Please upload movie_list.pkl and similarity.pkl to the data directory.")
-            st.stop()
-    except Exception as e:
-        st.error(f"Error loading data: {str(e)}")
-        st.stop()
-
 # Streamlit UI
 st.set_page_config(page_title="Movie Recommender System", page_icon="🎬", layout="wide")
 
@@ -269,6 +237,20 @@ st.markdown("""
 st.title('🎬 Movie Recommender System')
 st.markdown("Powered by OMDB API")
 st.markdown("---")
+
+# Load data with error handling
+@st.cache_data
+def load_data():
+    try:
+        movies = pickle.load(open(r'C:\Users\DINESH V A\Documents\movie-recommender-system\movie_list.pkl', 'rb'))
+        similarity = pickle.load(open(r'C:\Users\DINESH V A\Documents\movie-recommender-system\similarity.pkl', 'rb'))
+        return movies, similarity
+    except FileNotFoundError:
+        st.error("Required data files not found. Please ensure movie_list.pkl and similarity.pkl are in the correct location.")
+        st.stop()
+    except Exception as e:
+        st.error(f"Error loading data: {str(e)}")
+        st.stop()
 
 # Load the data
 movies, similarity = load_data()
@@ -324,7 +306,7 @@ st.markdown("---")
 # Recommendation button
 if st.button('🎯 Get Movie Recommendations', type='primary'):
     with st.spinner('Finding similar movies...'):
-        recommended_movies = recommend(selected_movie, movies, similarity)
+        recommended_movies = recommend(selected_movie)
     
     if recommended_movies:
         st.markdown("### 🎬 Recommended Movies")
@@ -392,15 +374,20 @@ with st.sidebar:
     
     # Cache statistics
     st.header("💾 Cache Statistics")
-    if 'poster_cache' in st.session_state:
-        st.metric("Cached Movies", len(st.session_state.poster_cache))
-        
-        if st.button("Clear Cache"):
-            st.session_state.poster_cache = {}
-            st.success("Cache cleared!")
-            st.rerun()
+    if os.path.exists("omdb_cache.json"):
+        try:
+            with open("omdb_cache.json", 'r') as f:
+                cache_data = json.load(f)
+                st.metric("Cached Movies", len(cache_data))
+                
+                if st.button("Clear Cache"):
+                    os.remove("omdb_cache.json")
+                    st.success("Cache cleared!")
+                    st.experimental_rerun()
+        except:
+            st.info("No cache data available")
     else:
-        st.info("No cache data available")
+        st.info("No cache file found")
     
     st.markdown("---")
     
