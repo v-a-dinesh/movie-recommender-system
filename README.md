@@ -1,6 +1,3 @@
-Here's a comprehensive README.md for your movie recommender system:
-
-```markdown
 # 🎬 Movie Recommender System
 
 A content-based movie recommendation system that suggests similar movies based on your preferences. Built with Python, Streamlit, and powered by OMDB API for real-time movie information.
