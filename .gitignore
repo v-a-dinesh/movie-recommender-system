@@ -11,9 +11,6 @@ ENV/
 # Streamlit
 .streamlit/secrets.toml
 
-# Data files (if too large)
-*.pkl
-data/
 
 # Cache
 omdb_cache.json
