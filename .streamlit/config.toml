@@ -5,7 +5,7 @@ primaryColor = "#FF4B4B"
 backgroundColor = "#0E1117"
 secondaryBackgroundColor = "#262730"
 textColor = "#FAFAFA"
-font = "sans serif"
+font = "IBM Plex Sans"
 
 [server]
 maxUploadSize = 200
